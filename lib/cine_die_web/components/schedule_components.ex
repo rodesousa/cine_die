@@ -105,18 +105,23 @@ defmodule CineDieWeb.ScheduleComponents do
 
   defp cinema_name(:vox), do: "Vox"
   defp cinema_name(:cosmos), do: "Cosmos"
+  defp cinema_name(:star), do: "Star"
   defp cinema_name("vox"), do: "Vox"
   defp cinema_name("cosmos"), do: "Cosmos"
+  defp cinema_name("star"), do: "Star"
   defp cinema_name(_), do: "Cinéma"
 
   defp cinema_dot_color(:vox), do: "bg-blue-500"
   defp cinema_dot_color(:cosmos), do: "bg-green-500"
+  defp cinema_dot_color(:star), do: "bg-purple-500"
   defp cinema_dot_color("vox"), do: "bg-blue-500"
   defp cinema_dot_color("cosmos"), do: "bg-green-500"
+  defp cinema_dot_color("star"), do: "bg-purple-500"
   defp cinema_dot_color(_), do: "bg-gray-500"
 
   defp cinema_border_color("vox"), do: "border-blue-500"
   defp cinema_border_color("cosmos"), do: "border-green-500"
+  defp cinema_border_color("star"), do: "border-purple-500"
   defp cinema_border_color(_), do: "border-gray-500"
 
   defp format_day_name(date) do

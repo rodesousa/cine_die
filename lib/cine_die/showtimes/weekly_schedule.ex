@@ -8,7 +8,7 @@ defmodule CineDie.Showtimes.WeeklySchedule do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @providers [:vox, :cosmos]
+  @providers [:vox, :cosmos, :star]
 
   schema "weekly_schedules" do
     field :provider, Ecto.Enum, values: @providers
@@ -24,7 +24,15 @@ defmodule CineDie.Showtimes.WeeklySchedule do
 
   def changeset(schedule, attrs) do
     schedule
-    |> cast(attrs, [:provider, :week_start, :week_number, :year, :showtimes, :fetched_at, :checksum])
+    |> cast(attrs, [
+      :provider,
+      :week_start,
+      :week_number,
+      :year,
+      :showtimes,
+      :fetched_at,
+      :checksum
+    ])
     |> validate_required([:provider, :week_start, :week_number, :year, :showtimes])
     |> validate_inclusion(:provider, @providers)
     |> validate_week_start_is_wednesday()

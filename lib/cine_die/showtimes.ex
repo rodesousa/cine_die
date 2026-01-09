@@ -10,7 +10,7 @@ defmodule CineDie.Showtimes do
   @topic "showtimes"
 
   @doc "Liste les séances de la semaine cinéma courante (Mercredi-Mardi) pour les providers spécifiés"
-  def list_current_week(providers \\ [:vox, :cosmos]) do
+  def list_current_week(providers \\ [:vox, :cosmos, :star]) do
     {year, week, _wednesday} = current_cinema_week()
 
     WeeklySchedule
@@ -20,7 +20,7 @@ defmodule CineDie.Showtimes do
   end
 
   @doc "Retourne les séances groupées par jour"
-  def list_by_day(providers \\ [:vox, :cosmos]) do
+  def list_by_day(providers \\ [:vox, :cosmos, :star]) do
     providers
     |> list_current_week()
     |> Enum.flat_map(&extract_sessions/1)
@@ -44,7 +44,7 @@ defmodule CineDie.Showtimes do
   end
 
   @doc "Upsert les séances d'un provider pour la semaine cinéma courante"
-  def upsert_schedule(provider, showtimes_data) when provider in [:vox, :cosmos] do
+  def upsert_schedule(provider, showtimes_data) when provider in [:vox, :cosmos, :star] do
     require Logger
 
     case ShowtimeData.validate(showtimes_data) do
@@ -97,7 +97,7 @@ defmodule CineDie.Showtimes do
   end
 
   @doc "Déclenche un refresh asynchrone via Oban pour un provider"
-  def request_refresh(provider) when provider in [:vox, :cosmos] do
+  def request_refresh(provider) when provider in [:vox, :cosmos, :star] do
     worker = worker_for_provider(provider)
 
     %{}
@@ -106,7 +106,7 @@ defmodule CineDie.Showtimes do
   end
 
   @doc "Supprime les données d'un provider pour la semaine cinéma courante"
-  def delete_current_week(provider) when provider in [:vox, :cosmos] do
+  def delete_current_week(provider) when provider in [:vox, :cosmos, :star] do
     {year, week, _wednesday} = current_cinema_week()
 
     WeeklySchedule
@@ -115,13 +115,14 @@ defmodule CineDie.Showtimes do
   end
 
   @doc "Recalcule les données: supprime puis relance le scraping pour un provider"
-  def recalculate(provider) when provider in [:vox, :cosmos] do
+  def recalculate(provider) when provider in [:vox, :cosmos, :star] do
     delete_current_week(provider)
     request_refresh(provider)
   end
 
   defp worker_for_provider(:vox), do: CineDie.Workers.VoxScraperWorker
   defp worker_for_provider(:cosmos), do: CineDie.Workers.CosmosScraperWorker
+  defp worker_for_provider(:star), do: CineDie.Workers.StarScraperWorker
 
   defp broadcast_update(provider) do
     Phoenix.PubSub.broadcast(@pubsub, @topic, {:showtimes_updated, provider})

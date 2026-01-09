@@ -18,8 +18,8 @@ defmodule CineDieWeb.ScheduleLive.Index do
     socket =
       socket
       |> assign(:page_title, "Programme")
-      |> assign(:loading, %{vox: false, cosmos: false})
-      |> assign(:selected_cinemas, MapSet.new([:vox, :cosmos]))
+      |> assign(:loading, %{vox: false, cosmos: false, star: false})
+      |> assign(:selected_cinemas, MapSet.new([:vox, :cosmos, :star]))
       |> load_schedules()
 
     {:ok, socket}
@@ -62,10 +62,11 @@ defmodule CineDieWeb.ScheduleLive.Index do
   def handle_event("refresh_all", _, socket) do
     Showtimes.request_refresh(:vox)
     Showtimes.request_refresh(:cosmos)
+    Showtimes.request_refresh(:star)
 
     socket =
       socket
-      |> assign(:loading, %{vox: true, cosmos: true})
+      |> assign(:loading, %{vox: true, cosmos: true, star: true})
       |> put_flash(:info, "Actualisation de tous les cinémas en cours...")
 
     {:noreply, socket}
@@ -89,10 +90,11 @@ defmodule CineDieWeb.ScheduleLive.Index do
   def handle_event("recalculate_all", _, socket) do
     Showtimes.recalculate(:vox)
     Showtimes.recalculate(:cosmos)
+    Showtimes.recalculate(:star)
 
     socket =
       socket
-      |> assign(:loading, %{vox: true, cosmos: true})
+      |> assign(:loading, %{vox: true, cosmos: true, star: true})
       |> put_flash(:info, "Recalcul de tous les cinémas en cours...")
 
     {:noreply, socket}
@@ -149,8 +151,10 @@ defmodule CineDieWeb.ScheduleLive.Index do
     # Si pas de données pour cette semaine, lancer le scraping
     unless Showtimes.data_exists?(:vox), do: Showtimes.request_refresh(:vox)
     unless Showtimes.data_exists?(:cosmos), do: Showtimes.request_refresh(:cosmos)
+    unless Showtimes.data_exists?(:star), do: Showtimes.request_refresh(:star)
   end
 
   defp provider_name(:vox), do: "Vox"
   defp provider_name(:cosmos), do: "Cosmos"
+  defp provider_name(:star), do: "Star"
 end

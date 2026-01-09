@@ -14,7 +14,7 @@
       <h2 class="text-gray-400 text-sm font-semibold uppercase tracking-wider mb-3">Cinemas</h2>
       <div class="space-y-1">
         <.cinema_checkbox
-          :for={cinema <- [:cosmos, :vox]}
+          :for={cinema <- [:cosmos, :vox, :star]}
           cinema={cinema}
           checked={MapSet.member?(@selected_cinemas, cinema)}
           loading={@loading[cinema]}
@@ -25,20 +25,21 @@
 <!-- Actions -->
     <div class="p-4 border-t border-gray-700 space-y-2">
       <button
+        :if={false}
         phx-click="refresh_all"
         class="w-full flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white py-2 px-4 rounded-lg transition-colors"
-        disabled={@loading.vox or @loading.cosmos}
+        disabled={@loading.vox or @loading.cosmos or @loading.star}
       >
         <.icon
           name="hero-arrow-path"
-          class={"w-4 h-4 #{if @loading.vox or @loading.cosmos, do: "animate-spin"}"}
+          class={"w-4 h-4 #{if @loading.vox or @loading.cosmos or @loading.star, do: "animate-spin"}"}
         />
         <span>Actualiser tout</span>
       </button>
       <button
         phx-click="recalculate_all"
         class="w-full flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg transition-colors"
-        disabled={@loading.vox or @loading.cosmos}
+        disabled={@loading.vox or @loading.cosmos or @loading.star}
       >
         <.icon name="hero-trash" class="w-4 h-4" />
         <span>Recalculer tout</span>
