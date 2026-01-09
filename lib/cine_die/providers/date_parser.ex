@@ -1,14 +1,15 @@
 defmodule CineDie.Providers.DateParser do
   @moduledoc """
-  Parse les dates en format français vers DateTime UTC.
+  Parse les dates en format français vers DateTime.
+  Les heures sont conservées telles quelles (heure locale Paris).
 
   ## Exemples
 
       iex> DateParser.parse_cosmos_date("Dim. 11.01 | 10H30")
-      {:ok, ~U[2026-01-11 09:30:00Z]}
+      {:ok, ~U[2026-01-11 10:30:00Z]}
 
       iex> DateParser.parse_french_date("Dim. 11.01", "10H30")
-      {:ok, ~U[2026-01-11 09:30:00Z]}
+      {:ok, ~U[2026-01-11 10:30:00Z]}
   """
 
   @doc """
@@ -70,12 +71,10 @@ defmodule CineDie.Providers.DateParser do
          {minute_int, ""} <- Integer.parse(minute),
          {:ok, date} <- Date.new(year, month_int, day_int),
          {:ok, time} <- Time.new(hour_int, minute_int, 0) do
-      # Créer en Europe/Paris puis convertir en UTC
+      # On garde l'heure locale (Paris) telle quelle
+      # car on affiche l'heure locale sans reconversion
       naive = NaiveDateTime.new!(date, time)
-      # Approximation : Paris est UTC+1 en hiver, UTC+2 en été
-      # Pour simplifier, on soustrait 1 heure (CET)
-      utc_naive = NaiveDateTime.add(naive, -3600, :second)
-      {:ok, DateTime.from_naive!(utc_naive, "Etc/UTC")}
+      {:ok, DateTime.from_naive!(naive, "Etc/UTC")}
     else
       _ -> {:error, :invalid_date_components}
     end
