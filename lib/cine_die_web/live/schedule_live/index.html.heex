@@ -1,0 +1,82 @@
+<div class="flex h-screen bg-gray-900">
+  <!-- Sidebar -->
+  <aside class="w-72 bg-gray-800 border-r border-gray-700 flex flex-col">
+    <!-- Header -->
+    <div class="p-4 border-b border-gray-700">
+      <h1 class="text-2xl font-bold">
+        <span class="text-white">Cine</span><span class="text-amber-500"> Die</span>
+      </h1>
+      <p class="text-gray-400 text-sm mt-1">Trouve la prochaine séance qui va t'illuminer</p>
+    </div>
+    
+<!-- Filtres Cinemas -->
+    <div class="p-4 flex-1">
+      <h2 class="text-gray-400 text-sm font-semibold uppercase tracking-wider mb-3">Cinemas</h2>
+      <div class="space-y-1">
+        <.cinema_checkbox
+          :for={cinema <- [:cosmos, :vox]}
+          cinema={cinema}
+          checked={MapSet.member?(@selected_cinemas, cinema)}
+          loading={@loading[cinema]}
+        />
+      </div>
+    </div>
+    
+<!-- Actions -->
+    <div class="p-4 border-t border-gray-700 space-y-2">
+      <button
+        phx-click="refresh_all"
+        class="w-full flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-500 text-white py-2 px-4 rounded-lg transition-colors"
+        disabled={@loading.vox or @loading.cosmos}
+      >
+        <.icon
+          name="hero-arrow-path"
+          class={"w-4 h-4 #{if @loading.vox or @loading.cosmos, do: "animate-spin"}"}
+        />
+        <span>Actualiser tout</span>
+      </button>
+      <button
+        phx-click="recalculate_all"
+        class="w-full flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg transition-colors"
+        disabled={@loading.vox or @loading.cosmos}
+      >
+        <.icon name="hero-trash" class="w-4 h-4" />
+        <span>Recalculer tout</span>
+      </button>
+    </div>
+  </aside>
+  
+<!-- Main Content -->
+  <main class="flex-1 flex flex-col overflow-hidden">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 p-4">
+      <h2 class="text-white text-xl font-semibold">Programme de la semaine</h2>
+      <p class="text-gray-400 text-sm">
+        <%= if Enum.any?(@loading, fn {_, v} -> v end) do %>
+          <span class="text-amber-500">Chargement en cours...</span>
+        <% else %>
+          {length(List.flatten(Enum.map(@days, & &1.sessions)))} seances disponibles
+        <% end %>
+      </p>
+    </header>
+    
+<!-- Days Grid -->
+    <div class="flex-1 overflow-x-auto">
+      <%= if Enum.empty?(@days) do %>
+        <div class="flex items-center justify-center h-full">
+          <div class="text-center">
+            <.icon name="hero-film" class="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <p class="text-gray-400 text-lg">Aucune seance trouvee</p>
+            <p class="text-gray-500 text-sm mt-2">
+              Cliquez sur "Actualiser tout" pour charger les donnees
+            </p>
+          </div>
+        </div>
+      <% else %>
+        <div class="flex h-full divide-x divide-gray-700">
+          <.day_column :for={day <- @days} day={day} />
+        </div>
+      <% end %>
+    </div>
+  </main>
+</div>

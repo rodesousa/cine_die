@@ -1,0 +1,9 @@
+- pas la peine d'écrire VO/VF
+- on veut savoir la duréé du film
+- en optionniel avoir le realisateur
+- Changer Reserver en Voir
+- Il n'y a pas de seance cosmos, il doit avoir un bug, les tests sont ok ?
+- pas la peine de mettre le nom de la salle
+- la semaine doit commencer par mercredi et pas le jour courrant. L'algo doit etre: Tu prends le jour j, tu trouve la current week et tu prends le mercredi de cette current week, tu regardes ds weekly_schedules si pour un provider + week_start existe, sinon tu lances un Oban
+- Je veux voir que 7 jours
+- je veux un bouton recalculer qui supprime ds weekly schedules le provider et le mercredi courant, et donc relancer les oban
