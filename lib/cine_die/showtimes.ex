@@ -50,7 +50,11 @@ defmodule CineDie.Showtimes do
     case ShowtimeData.validate(showtimes_data) do
       {:ok, validated} ->
         {year, week, wednesday} = current_cinema_week()
-        Logger.debug("[Showtimes] upsert for #{provider}: year=#{year}, week=#{week}, wednesday=#{wednesday}")
+
+        Logger.debug(
+          "[Showtimes] upsert for #{provider}: year=#{year}, week=#{week}, wednesday=#{wednesday}"
+        )
+
         checksum = compute_checksum(validated)
 
         attrs = %{
@@ -166,7 +170,9 @@ defmodule CineDie.Showtimes do
       (film["sessions"] || [])
       |> Enum.map(fn session ->
         datetime = parse_datetime(session["datetime"])
+
         %{
+          link: film["link"],
           film_title: film["title"],
           film_id: film["external_id"],
           director: film["director"],
@@ -176,9 +182,7 @@ defmodule CineDie.Showtimes do
           datetime: datetime,
           date: DateTime.to_date(datetime),
           time: DateTime.to_time(datetime),
-          room: session["room"],
           version: session["version"],
-          booking_url: session["booking_url"],
           cinema: Atom.to_string(schedule.provider)
         }
       end)
@@ -187,7 +191,9 @@ defmodule CineDie.Showtimes do
 
   defp parse_datetime(iso_string) when is_binary(iso_string) do
     case DateTime.from_iso8601(iso_string) do
-      {:ok, dt, _} -> dt
+      {:ok, dt, _} ->
+        dt
+
       _ ->
         # Essayer avec Z si pas de timezone
         case DateTime.from_iso8601(iso_string <> "Z") do
@@ -196,5 +202,6 @@ defmodule CineDie.Showtimes do
         end
     end
   end
+
   defp parse_datetime(_), do: DateTime.utc_now()
 end

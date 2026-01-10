@@ -44,6 +44,7 @@ defmodule CineDie.Showtimes.ShowtimeData do
   embedded_schema do
     embeds_many :films, Film, primary_key: false do
       field :external_id, :string
+      field :link, :string
       field :title, :string
       field :director, :string
       field :duration_minutes, :integer
@@ -52,9 +53,7 @@ defmodule CineDie.Showtimes.ShowtimeData do
 
       embeds_many :sessions, Session, primary_key: false do
         field :datetime, :string
-        field :room, :string
         field :version, :string
-        field :booking_url, :string
         field :session_id, :string
       end
     end
@@ -108,15 +107,23 @@ defmodule CineDie.Showtimes.ShowtimeData do
 
   defp film_changeset(struct, params) do
     struct
-    |> cast(params, [:external_id, :title, :director, :duration_minutes, :genre, :poster_url])
+    |> cast(params, [
+      :link,
+      :external_id,
+      :title,
+      :director,
+      :duration_minutes,
+      :genre,
+      :poster_url
+    ])
     |> validate_required([:external_id, :title])
     |> cast_embed(:sessions, required: true, with: &session_changeset/2)
   end
 
   defp session_changeset(struct, params) do
     struct
-    |> cast(params, [:datetime, :room, :version, :booking_url, :session_id])
-    |> validate_required([:datetime, :room])
+    |> cast(params, [:datetime, :version, :session_id])
+    |> validate_required([:datetime])
     |> validate_inclusion(:version, @valid_versions)
   end
 
@@ -140,6 +147,7 @@ defmodule CineDie.Showtimes.ShowtimeData do
 
   defp film_to_map(film) do
     %{
+      "link" => film.link,
       "external_id" => film.external_id,
       "title" => film.title,
       "director" => film.director,
@@ -153,9 +161,7 @@ defmodule CineDie.Showtimes.ShowtimeData do
   defp session_to_map(session) do
     %{
       "datetime" => session.datetime,
-      "room" => session.room,
       "version" => session.version,
-      "booking_url" => session.booking_url,
       "session_id" => session.session_id
     }
   end

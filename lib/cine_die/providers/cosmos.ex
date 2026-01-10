@@ -1,16 +1,15 @@
 defmodule CineDie.Providers.Cosmos do
   @moduledoc """
   Provider pour le Cinéma Le Cosmos (Strasbourg).
-  Utilise le sitemap XML + scraping des pages de séances.
+  Scrape la page /agenda/ qui liste tous les films avec leurs séances.
   """
 
   @behaviour CineDie.Providers.Provider
 
-  import SweetXml
   require Logger
 
   @base_url "https://cinema-cosmos.eu"
-  @sitemap_url "#{@base_url}/seance-sitemap.xml"
+  @agenda_url "#{@base_url}/agenda/"
 
   @impl true
   def cinema_info do
@@ -19,21 +18,30 @@ defmodule CineDie.Providers.Cosmos do
 
   @impl true
   def fetch_raw do
-    with {:ok, seance_urls} <- fetch_seance_urls(),
-         {:ok, seances} <- fetch_all_seances(seance_urls) do
-      {:ok, seances}
+    case Req.get(@agenda_url, receive_timeout: 30_000) do
+      {:ok, %{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %{status: status}} ->
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
   @impl true
-  def to_showtime_data(seances) when is_list(seances) do
+  def to_showtime_data(html) when is_binary(html) do
+    doc = Floki.parse_document!(html)
     info = cinema_info()
 
+    # Essayer plusieurs selecteurs pour trouver les films
     films =
-      seances
+      doc
+      |> find_film_elements()
+      |> Enum.map(&parse_article/1)
       |> Enum.reject(&is_nil/1)
-      |> Enum.reject(fn s -> Enum.empty?(s.sessions) end)
-      |> Enum.map(&format_film/1)
+      |> Enum.reject(fn film -> Enum.empty?(film["sessions"]) end)
 
     data = %{
       "films" => films,
@@ -48,207 +56,218 @@ defmodule CineDie.Providers.Cosmos do
     {:ok, data}
   end
 
-  # Récupère les URLs des séances depuis le sitemap
-  defp fetch_seance_urls do
-    case Req.get(@sitemap_url, receive_timeout: 30_000) do
-      {:ok, %{status: 200, body: body}} ->
-        urls =
-          body
-          |> xpath(~x"//url/loc/text()"ls)
-          # Filter seance pages but exclude the main archive page /seance/
-          |> Enum.filter(fn url ->
-            String.contains?(url, "/seance/") and not String.ends_with?(url, "/seance/")
-          end)
+  # Trouve les elements de films avec differents selecteurs possibles
+  defp find_film_elements(doc) do
+    selectors = [
+      ".wpgb-card",
+      ".wpgb-card-wrapper",
+      "article.seance",
+      "article[class*='seance']",
+      ".seance"
+    ]
 
-        {:ok, urls}
-
-      {:ok, %{status: status}} ->
-        {:error, {:http_error, status}}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+    Enum.find_value(selectors, [], fn selector ->
+      elements = Floki.find(doc, selector)
+      if Enum.any?(elements), do: elements, else: nil
+    end) || []
   end
 
-  # Récupère toutes les pages de séances en parallèle
-  defp fetch_all_seances(urls) do
-    seances =
-      urls
-      |> Task.async_stream(&fetch_seance_page/1,
-        max_concurrency: 5,
-        timeout: 30_000,
-        on_timeout: :kill_task
-      )
-      |> Enum.map(fn
-        {:ok, {:ok, seance}} -> seance
-        _ -> nil
-      end)
-      |> Enum.reject(&is_nil/1)
-
-    {:ok, seances}
-  end
-
-  # Récupère et parse une page de séance
-  defp fetch_seance_page(url) do
-    case Req.get(url, receive_timeout: 15_000) do
-      {:ok, %{status: 200, body: body}} ->
-        parse_seance_page(body, url)
-
-      _ ->
-        {:error, :fetch_failed}
-    end
-  rescue
-    e -> {:error, e}
-  end
-
-  defp parse_seance_page(html, source_url) do
-    doc = Floki.parse_document!(html)
-
-    title = extract_title(doc)
-    slug = extract_slug(source_url)
-    sessions = extract_sessions(doc)
-
-    seance = %{
-      slug: slug,
-      title: title,
-      director: extract_text(doc, ".card-realisateur"),
-      duration: extract_duration(doc),
-      country: extract_text(doc, ".card-country"),
-      poster_url: extract_poster(doc),
-      sessions: sessions
-    }
-
-    {:ok, seance}
-  end
-
-  defp extract_title(doc) do
-    # Get only the first h1.entry-title element
-    title =
-      doc
-      |> Floki.find("h1.entry-title")
+  # Parse un article de film
+  defp parse_article(article) do
+    # Extraire l'ID depuis l'attribut id de l'article (ex: "post-43906")
+    article_id =
+      article
+      |> Floki.attribute("id")
       |> List.first()
       |> case do
-        nil -> ""
-        element -> Floki.text(element) |> String.trim()
+        nil -> "unknown"
+        id -> String.replace(id, "post-", "")
       end
 
-    if title == "" do
-      # Fallback to page title
-      doc
-      |> Floki.find("title")
-      |> Floki.text()
-      |> String.split(" - ")
-      |> List.first()
-      |> String.trim()
-    else
-      title
+    # Titre du film - dans le heading principal
+    title = extract_title(article)
+
+    # Lien vers la page du film
+    link = extract_film_link(article)
+
+    # Réalisateur
+    director = extract_director(article)
+
+    # Durée depuis la ligne d'info (FR | 1H14 | 2021)
+    duration = extract_duration(article)
+
+    # Poster
+    poster_url = extract_poster(article)
+
+    # Séances groupées par salle
+    sessions = extract_sessions(article)
+
+    %{
+      "external_id" => article_id,
+      "title" => title,
+      "link" => link,
+      "director" => director,
+      "duration_minutes" => duration,
+      "genre" => nil,
+      "poster_url" => poster_url,
+      "sessions" => sessions
+    }
+  end
+
+  defp extract_title(article) do
+    # Le titre est généralement dans un h2 ou h3 avec un lien
+    article
+    |> Floki.find("h2 a, h3 a, .entry-title a, .seance-titre a")
+    |> List.first()
+    |> case do
+      nil ->
+        # Fallback: chercher juste le heading
+        article
+        |> Floki.find("h2, h3, .entry-title")
+        |> Floki.text()
+        |> String.trim()
+
+      element ->
+        Floki.text(element) |> String.trim()
     end
   end
 
-  defp extract_text(doc, selector) do
-    doc |> Floki.find(selector) |> Floki.text() |> String.trim() |> nilify()
+  defp extract_film_link(article) do
+    article
+    |> Floki.find("h2 a, h3 a, .entry-title a, .seance-titre a")
+    |> Floki.attribute("href")
+    |> List.first()
   end
 
-  defp extract_duration(doc) do
-    text = extract_text(doc, ".card-duree")
+  defp extract_director(article) do
+    # Le réalisateur est souvent après le titre
+    # Chercher dans les éléments de texte qui contiennent des noms
+    text =
+      article
+      |> Floki.find(".seance-realisateur, .entry-content > p:first-child")
+      |> Floki.text()
+      |> String.trim()
 
-    case text && Regex.run(~r/(\d+)H(\d+)?/i, text) do
+    if text == "" do
+      # Fallback: chercher le texte juste après le titre
+      article
+      |> Floki.text()
+      |> extract_director_from_text()
+    else
+      text
+    end
+  end
+
+  defp extract_director_from_text(text) do
+    # Pattern pour trouver le réalisateur après le titre
+    # Généralement format "Prénom Nom, Prénom Nom"
+    case Regex.run(~r/\n\s*([A-Z][a-zéèêëàâäùûüôöîï]+\s+[A-Z][a-zéèêëàâäùûüôöîï\-]+(?:,\s*[A-Z][a-zéèêëàâäùûüôöîï]+\s+[A-Z][a-zéèêëàâäùûüôöîï\-]+)*)\s*\n/, text) do
+      [_, director] -> String.trim(director)
+      _ -> nil
+    end
+  end
+
+  defp extract_duration(article) do
+    # Chercher le pattern "1H14" ou "1H22" dans le texte
+    text = Floki.text(article)
+
+    case Regex.run(~r/(\d+)H(\d+)/i, text) do
       [_, hours, minutes] ->
-        String.to_integer(hours) * 60 + String.to_integer(minutes || "0")
-
-      [_, hours] ->
-        String.to_integer(hours) * 60
+        String.to_integer(hours) * 60 + String.to_integer(minutes)
 
       _ ->
         nil
     end
   end
 
-  defp extract_poster(doc) do
-    doc
-    |> Floki.find("img.wp-post-image, .caps-img-seance img")
+  defp extract_poster(article) do
+    article
+    |> Floki.find("img")
     |> Floki.attribute("src")
     |> List.first()
   end
 
-  defp extract_sessions(doc) do
-    current_room = "Salle principale"
+  defp extract_sessions(article) do
+    # Les séances sont dans des liens avec le format "SAM. 10.01 | 10H30 | VF"
+    # Chercher les liens de reservation (billetterie, ticketingcine, etc.)
 
-    doc
-    |> Floki.find("li.infos-reservation-salle, li.infos-reservation-item")
-    |> Enum.reduce({current_room, []}, fn element, {room, sessions} ->
-      class = Floki.attribute(element, "class") |> List.first() || ""
-
-      cond do
-        String.contains?(class, "infos-reservation-salle") ->
-          new_room = Floki.find(element, "span") |> Floki.text() |> String.trim()
-          {new_room, sessions}
-
-        String.contains?(class, "infos-reservation-item") ->
-          case parse_session(element, room) do
-            {:ok, session} -> {room, [session | sessions]}
-            _ -> {room, sessions}
-          end
-
-        true ->
-          {room, sessions}
-      end
-    end)
-    |> elem(1)
-    |> Enum.reverse()
+    article
+    |> Floki.find("a[href*='billetterie'], a[href*='reservation'], a[href*='ticketingcine']")
+    |> Enum.map(&parse_session_link/1)
+    |> Enum.reject(&is_nil/1)
   end
 
-  defp parse_session(element, room) do
-    link = Floki.find(element, "a") |> List.first()
+  defp parse_session_link(link_element) do
+    href = Floki.attribute(link_element, "href") |> List.first() || ""
+    text = Floki.text(link_element) |> String.trim()
 
-    if link do
-      href = Floki.attribute(link, "href") |> List.first() || ""
-      text = Floki.text(link) |> String.trim()
-      version = extract_version(element)
+    # Format attendu: "SAM. 10.01 | 10H30 | VF" ou "DIM. 01.02 | 10H40 | VF"
+    case parse_session_text(text) do
+      {:ok, datetime, version} ->
+        %{
+          "datetime" => DateTime.to_iso8601(datetime),
+          "version" => version,
+          "booking_url" => href,
+          "session_id" => extract_session_id(href)
+        }
 
-      case CineDie.Providers.DateParser.parse_cosmos_date(text) do
-        {:ok, datetime} ->
-          {:ok,
-           %{
-             datetime: datetime,
-             room: room,
-             version: version,
-             booking_url: href,
-             session_id: extract_session_id(href)
-           }}
+      _ ->
+        nil
+    end
+  end
 
-        _ ->
-          {:error, :invalid_date}
-      end
+  defp parse_session_text(text) do
+    # Pattern: "JOUR. DD.MM | HHhMM|VERSION" ou "JOUR. DD.MM | HHhMM | VERSION"
+    # Le pipe avant VERSION peut avoir ou non un espace
+    regex = ~r/(\w+)\.\s*(\d{1,2})\.(\d{2})\s*\|\s*(\d{1,2})[Hh:](\d{2})\s*\|?\s*(\w+)/i
+
+    case Regex.run(regex, text) do
+      [_, _day_name, day, month, hour, minute, version] ->
+        case build_datetime(day, month, hour, minute) do
+          {:ok, datetime} -> {:ok, datetime, normalize_version(version)}
+          _ -> :error
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  defp build_datetime(day, month, hour, minute) do
+    year = current_or_next_year(month)
+
+    with {day_int, ""} <- Integer.parse(day),
+         {month_int, ""} <- Integer.parse(month),
+         {hour_int, ""} <- Integer.parse(hour),
+         {minute_int, ""} <- Integer.parse(minute),
+         {:ok, date} <- Date.new(year, month_int, day_int),
+         {:ok, time} <- Time.new(hour_int, minute_int, 0) do
+      naive = NaiveDateTime.new!(date, time)
+      {:ok, DateTime.from_naive!(naive, "Etc/UTC")}
     else
-      {:error, :no_link}
+      _ -> {:error, :invalid_date}
     end
   end
 
-  defp extract_version(element) do
-    features =
-      element
-      |> Floki.find("li.feature-agenda")
-      |> Enum.map(&Floki.text/1)
-      |> Enum.map(&String.upcase/1)
-      |> Enum.map(&String.trim/1)
+  defp current_or_next_year(month) do
+    today = Date.utc_today()
+    month_int = String.to_integer(month)
 
-    cond do
-      "VOSTFR" in features -> "VOSTFR"
-      "VO" in features and "ST" in features -> "VOSTFR"
-      "VO" in features -> "VO"
-      "VF" in features -> "VF"
-      true -> "VF"
+    if month_int < today.month - 1 do
+      today.year + 1
+    else
+      today.year
     end
   end
 
-  defp extract_slug(url) do
-    url
-    |> URI.parse()
-    |> Map.get(:path, "")
-    |> String.split("/")
-    |> Enum.reject(&(&1 == ""))
-    |> List.last() || "unknown"
+  defp normalize_version(version) do
+    case String.upcase(version) do
+      "VF" -> "VF"
+      "VO" -> "VO"
+      "VOSTFR" -> "VOSTFR"
+      "VOST" -> "VOSTFR"
+      _ -> "VF"
+    end
   end
 
   defp extract_session_id(href) do
@@ -258,33 +277,9 @@ defmodule CineDie.Providers.Cosmos do
     end
   end
 
-  defp format_film(seance) do
-    %{
-      "external_id" => seance.slug,
-      "title" => seance.title,
-      "director" => seance.director,
-      "duration_minutes" => seance.duration,
-      "genre" => nil,
-      "poster_url" => seance.poster_url,
-      "sessions" =>
-        Enum.map(seance.sessions, fn s ->
-          %{
-            "datetime" => DateTime.to_iso8601(s.datetime),
-            "room" => s.room,
-            "version" => s.version,
-            "booking_url" => s.booking_url,
-            "session_id" => s.session_id
-          }
-        end)
-    }
-  end
-
   defp count_sessions(films) do
     Enum.reduce(films, 0, fn film, acc ->
       acc + length(Map.get(film, "sessions", []))
     end)
   end
-
-  defp nilify(""), do: nil
-  defp nilify(str), do: str
 end

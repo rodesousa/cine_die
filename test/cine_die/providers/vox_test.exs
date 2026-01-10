@@ -3,12 +3,15 @@ defmodule CineDie.Providers.VoxTest do
   alias CineDie.Providers.Vox
   alias CineDie.Showtimes.ShowtimeData
 
-  test "cc" do
-    CineDie.Providers.Provider.fetch_and_validate(Vox)
-    |> IO.inspect(label: " ")
-  end
-
   describe "cinema_info/0" do
+    test "fetch_raw" do
+      {:ok, raw} =
+        Vox.fetch_raw()
+
+      Vox.to_showtime_data(raw)
+      # |> IO.inspect(label: " ")
+    end
+
     test "retourne les infos du cinema" do
       info = Vox.cinema_info()
       assert info.name == "Vox Strasbourg"
@@ -33,9 +36,6 @@ defmodule CineDie.Providers.VoxTest do
 
       film = hd(data["films"])
 
-      film
-      |> IO.inspect()
-
       assert film["external_id"]
       assert film["title"]
       assert length(film["sessions"]) > 0
@@ -49,7 +49,6 @@ defmodule CineDie.Providers.VoxTest do
       session = hd(film["sessions"])
 
       assert session["datetime"]
-      assert session["room"]
       assert session["version"] in ["VF", "VOSTFR", "VO"]
     end
 

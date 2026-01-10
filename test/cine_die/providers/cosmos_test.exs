@@ -3,6 +3,12 @@ defmodule CineDie.Providers.CosmosTest do
   alias CineDie.Providers.Cosmos
   alias CineDie.Showtimes.ShowtimeData
 
+  @fixture_path "test/support/fixtures/cosmos_agenda.html"
+
+  defp load_fixture do
+    File.read!(@fixture_path)
+  end
+
   describe "cinema_info/0" do
     test "retourne les infos du cinema" do
       info = Cosmos.cinema_info()
@@ -12,58 +18,106 @@ defmodule CineDie.Providers.CosmosTest do
     end
   end
 
-  describe "to_showtime_data/1 avec donnees simulees" do
-    test "transforme une liste de seances en structure valide" do
-      # Simuler les donnees raw (ce que fetch_raw retournerait)
-      seances = [
-        %{
-          slug: "test-film",
-          title: "Test Film",
-          director: "Test Director",
-          duration: 120,
-          country: "FR",
-          poster_url: "https://example.com/poster.jpg",
-          sessions: [
-            %{
-              datetime: ~U[2026-01-09 14:00:00Z],
-              room: "Grande salle",
-              version: "VF",
-              booking_url: "https://ticketingcine.com?id=123",
-              session_id: "123"
-            }
-          ]
-        }
-      ]
+  describe "to_showtime_data/1" do
+    test "parse le HTML et retourne une structure valide" do
+      html = load_fixture()
 
-      assert {:ok, data} = Cosmos.to_showtime_data(seances)
+      assert {:ok, data} = Cosmos.to_showtime_data(html)
       assert {:ok, _validated} = ShowtimeData.validate(data)
     end
 
-    test "metadata est correcte" do
-      seances = [
-        %{
-          slug: "test",
-          title: "Test",
-          director: nil,
-          duration: nil,
-          country: nil,
-          poster_url: nil,
-          sessions: [
-            %{
-              datetime: ~U[2026-01-09 14:00:00Z],
-              room: "Salle",
-              version: "VF",
-              booking_url: nil,
-              session_id: nil
-            }
-          ]
-        }
-      ]
+    test "extrait les films depuis les articles" do
+      html = load_fixture()
 
-      {:ok, data} = Cosmos.to_showtime_data(seances)
+      {:ok, data} = Cosmos.to_showtime_data(html)
+      films = data["films"]
+
+      # 2 films avec seances (le 3e n'a pas de seances)
+      assert length(films) == 2
+
+      # Premier film
+      film1 = Enum.find(films, &(&1["external_id"] == "43906"))
+      assert film1["title"] == "Princesse Dragon"
+      assert film1["link"] == "https://cinema-cosmos.eu/seance/princesse-dragon/"
+      assert film1["duration_minutes"] == 74
+      assert length(film1["sessions"]) == 3
+    end
+
+    test "extrait le lien vers la fiche film" do
+      html = load_fixture()
+
+      {:ok, data} = Cosmos.to_showtime_data(html)
+      film = hd(data["films"])
+
+      assert film["link"] =~ "cinema-cosmos.eu/seance/"
+    end
+
+    test "extrait les sessions avec datetime et version" do
+      html = load_fixture()
+
+      {:ok, data} = Cosmos.to_showtime_data(html)
+      film = Enum.find(data["films"], &(&1["external_id"] == "43906"))
+      session = hd(film["sessions"])
+
+      assert session["version"] == "VF"
+      assert session["booking_url"] =~ "billetterie"
+      assert session["datetime"] =~ "2026-01-11"
+    end
+
+    test "filtre les films sans seances" do
+      html = load_fixture()
+
+      {:ok, data} = Cosmos.to_showtime_data(html)
+      films = data["films"]
+
+      # Le film "Film Sans Seances" ne doit pas apparaitre
+      assert Enum.all?(films, fn f -> f["title"] != "Film Sans Seances" end)
+    end
+
+    test "metadata est correcte" do
+      html = load_fixture()
+
+      {:ok, data} = Cosmos.to_showtime_data(html)
 
       assert data["metadata"]["cinema_name"] == "Le Cosmos"
-      assert data["metadata"]["total_sessions"] == 1
+      assert data["metadata"]["total_sessions"] == 5
+      assert data["metadata"]["fetched_at"] != nil
+    end
+
+    test "extrait la duree depuis le pattern XhYY" do
+      html = load_fixture()
+
+      {:ok, data} = Cosmos.to_showtime_data(html)
+
+      film1 = Enum.find(data["films"], &(&1["external_id"] == "43906"))
+      assert film1["duration_minutes"] == 74  # 1H14
+
+      film2 = Enum.find(data["films"], &(&1["external_id"] == "43907"))
+      assert film2["duration_minutes"] == 82  # 1H22
+    end
+
+    test "extrait le poster" do
+      html = load_fixture()
+
+      {:ok, data} = Cosmos.to_showtime_data(html)
+      film = hd(data["films"])
+
+      assert film["poster_url"] =~ "example.com/poster"
+    end
+  end
+
+  describe "fetch_raw/0" do
+    @tag :integration
+    test "recupere le HTML de la page agenda" do
+      case Cosmos.fetch_raw() do
+        {:ok, html} ->
+          assert is_binary(html)
+          assert html =~ "article"
+
+        {:error, _} ->
+          # Network error acceptable in tests
+          :ok
+      end
     end
   end
 end

@@ -79,21 +79,22 @@ defmodule CineDie.Providers.Star do
       film_info = extract_film_info(doc, film_id)
 
       %{
+        "link" => film_info.link,
         "external_id" => film_id,
         "title" => film_info.title,
         "director" => film_info.director,
         "duration_minutes" => film_info.duration_minutes,
         "genre" => film_info.genre,
         "poster_url" => film_info.poster_url,
-        "sessions" => Enum.map(sessions, fn s ->
-          %{
-            "datetime" => DateTime.to_iso8601(s.datetime),
-            "room" => "Salle Star",
-            "version" => s.version,
-            "booking_url" => s.booking_url,
-            "session_id" => "#{s.film_id}-#{DateTime.to_unix(s.datetime)}"
-          }
-        end)
+        "sessions" =>
+          Enum.map(sessions, fn s ->
+            %{
+              "datetime" => DateTime.to_iso8601(s.datetime),
+              "version" => s.version,
+              "booking_url" => s.booking_url,
+              "session_id" => "#{s.film_id}-#{DateTime.to_unix(s.datetime)}"
+            }
+          end)
       }
     end)
   end
@@ -132,25 +133,41 @@ defmodule CineDie.Providers.Star do
 
   # Extraire les infos d'un film à partir de son ID
   defp extract_film_info(doc, film_id) do
-    # Chercher le lien vers la fiche film
-    film_link_selector = "a[href*='/film/#{film_id}/']"
-
-    film_block =
+    # Chercher le lien avec class "horaires-affiche" pour ce film
+    film_link_element =
       doc
-      |> Floki.find(film_link_selector)
+      |> Floki.find("a.horaires-affiche[href*='/film/#{film_id}/']")
       |> List.first()
 
-    title =
-      if film_block do
-        Floki.text(film_block) |> String.trim() |> clean_title()
+    # Extraire le lien et le titre
+    {link, title} =
+      if film_link_element do
+        href = Floki.attribute(film_link_element, "href") |> List.first()
+        # Le titre est dans l'attribut title: "Voir la fiche du film XXX"
+        title_attr = Floki.attribute(film_link_element, "title") |> List.first() || ""
+        title = title_attr |> String.replace(~r/^Voir la fiche du film\s*/i, "") |> String.trim()
+        # Fallback sur le texte si title vide
+        title = if title == "", do: Floki.text(film_link_element) |> String.trim(), else: title
+        {href, title}
       else
-        "Film #{film_id}"
+        # Fallback: chercher n'importe quel lien vers ce film
+        fallback =
+          doc
+          |> Floki.find("a[href*='/film/#{film_id}/']")
+          |> List.first()
+
+        if fallback do
+          href = Floki.attribute(fallback, "href") |> List.first()
+          title = Floki.text(fallback) |> String.trim()
+          {href, title}
+        else
+          {nil, "Film #{film_id}"}
+        end
       end
 
-    # Chercher les infos autour du lien du film
-    # On cherche le parent qui contient toutes les infos
     %{
-      title: title,
+      title: clean_title(title),
+      link: link,
       director: extract_text_after(doc, film_id, "Réalisé par"),
       duration_minutes: extract_duration(doc, film_id),
       genre: extract_genre(doc, film_id),

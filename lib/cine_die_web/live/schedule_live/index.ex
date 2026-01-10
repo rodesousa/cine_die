@@ -144,6 +144,10 @@ defmodule CineDieWeb.ScheduleLive.Index do
         %{date: date, sessions: sessions}
       end)
 
+    days
+    |> hd
+    |> IO.inspect(label: " ")
+
     assign(socket, :days, days)
   end
 

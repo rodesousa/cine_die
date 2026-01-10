@@ -88,13 +88,13 @@ defmodule CineDieWeb.ScheduleComponents do
         </div>
       </div>
 
-      <div :if={false && @session.booking_url} class="mt-3">
+      <div :if={true} class="mt-3">
         <a
-          href={@session.booking_url}
+          href={@session.link}
           target="_blank"
           class="block w-full text-center bg-amber-600 hover:bg-amber-500 text-white text-xs py-2 px-3 rounded transition-colors"
         >
-          Voir
+          Description
         </a>
       </div>
     </div>

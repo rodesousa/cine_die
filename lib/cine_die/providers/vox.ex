@@ -86,13 +86,15 @@ defmodule CineDie.Providers.Vox do
       href = Floki.attribute(title_link, "href") |> List.first() || ""
       title = Floki.text(title_link) |> String.trim()
 
-      film_id = case Regex.run(~r{/film/(\d+)/}, href) do
-        [_, id] -> id
-        _ -> nil
-      end
+      film_id =
+        case Regex.run(~r{/film/(\d+)/}, href) do
+          [_, id] -> id
+          _ -> nil
+        end
 
       if film_id do
         %{
+          "link" => href,
           "external_id" => film_id,
           "title" => title,
           "director" => extract_director(element),
@@ -123,8 +125,10 @@ defmodule CineDie.Providers.Vox do
         h = String.to_integer(hours)
         m = if minutes && minutes != "", do: String.to_integer(minutes), else: 0
         h * 60 + m
+
       [_, hours] ->
         String.to_integer(hours) * 60
+
       _ ->
         nil
     end
@@ -166,7 +170,6 @@ defmodule CineDie.Providers.Vox do
     |> Enum.map(fn s ->
       %{
         "datetime" => DateTime.to_iso8601(s.datetime),
-        "room" => "Salle #{s.room_id}",
         "version" => s.version,
         "booking_url" => s.booking_url,
         "session_id" => "#{s.film_id}-#{s.room_id}-#{DateTime.to_unix(s.datetime)}"

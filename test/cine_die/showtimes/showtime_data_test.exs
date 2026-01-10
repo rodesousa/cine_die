@@ -86,7 +86,6 @@ defmodule CineDie.Showtimes.ShowtimeDataTest do
               "datetime" => "2026-01-09T14:00:00Z",
               "room" => "Salle 1",
               "version" => "VF",
-              "booking_url" => "https://example.com/book",
               "session_id" => "sess123"
             }
           ]
