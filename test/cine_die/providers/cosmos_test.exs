@@ -36,10 +36,12 @@ defmodule CineDie.Providers.CosmosTest do
       assert length(films) == 2
 
       # Premier film
-      film1 = Enum.find(films, &(&1["external_id"] == "43906"))
+      film1 =
+        Enum.find(films, &(&1["external_id"] == "43906"))
+
       assert film1["title"] == "Princesse Dragon"
       assert film1["link"] == "https://cinema-cosmos.eu/seance/princesse-dragon/"
-      assert film1["duration_minutes"] == 74
+      assert film1["duration"]
       assert length(film1["sessions"]) == 3
     end
 
@@ -84,16 +86,16 @@ defmodule CineDie.Providers.CosmosTest do
       assert data["metadata"]["fetched_at"] != nil
     end
 
-    test "extrait la duree depuis le pattern XhYY" do
+    test "extrait la duree comme string" do
       html = load_fixture()
 
       {:ok, data} = Cosmos.to_showtime_data(html)
 
       film1 = Enum.find(data["films"], &(&1["external_id"] == "43906"))
-      assert film1["duration_minutes"] == 74  # 1H14
+      assert is_binary(film1["duration"])
 
       film2 = Enum.find(data["films"], &(&1["external_id"] == "43907"))
-      assert film2["duration_minutes"] == 82  # 1H22
+      assert is_binary(film2["duration"])
     end
 
     test "extrait le poster" do

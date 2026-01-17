@@ -66,9 +66,9 @@ defmodule CineDieWeb.ScheduleComponents do
           {format_time(@session.time)}
         </span>
         <div class="flex items-center gap-2">
-          <span :if={@session.duration_minutes} class="text-gray-400 text-xs">
+          <span :if={@session.duration} class="text-gray-400 text-xs">
             <.icon name="hero-clock" class="w-3 h-3 inline" />
-            {format_duration(@session.duration_minutes)}
+            {@session.duration}
           </span>
         </div>
       </div>
@@ -159,13 +159,5 @@ defmodule CineDieWeb.ScheduleComponents do
     hour = time.hour |> Integer.to_string() |> String.pad_leading(2, "0")
     minute = time.minute |> Integer.to_string() |> String.pad_leading(2, "0")
     "#{hour}:#{minute}"
-  end
-
-  defp format_duration(nil), do: nil
-
-  defp format_duration(minutes) when is_integer(minutes) do
-    hours = div(minutes, 60)
-    mins = rem(minutes, 60)
-    "#{hours}h#{String.pad_leading(Integer.to_string(mins), 2, "0")}"
   end
 end

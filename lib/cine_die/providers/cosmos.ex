@@ -93,7 +93,6 @@ defmodule CineDie.Providers.Cosmos do
     # Réalisateur
     director = extract_director(article)
 
-    # Durée depuis la ligne d'info (FR | 1H14 | 2021)
     duration = extract_duration(article)
 
     # Poster
@@ -107,7 +106,7 @@ defmodule CineDie.Providers.Cosmos do
       "title" => title,
       "link" => link,
       "director" => director,
-      "duration_minutes" => duration,
+      "duration" => duration,
       "genre" => nil,
       "poster_url" => poster_url,
       "sessions" => sessions
@@ -161,23 +160,20 @@ defmodule CineDie.Providers.Cosmos do
   defp extract_director_from_text(text) do
     # Pattern pour trouver le réalisateur après le titre
     # Généralement format "Prénom Nom, Prénom Nom"
-    case Regex.run(~r/\n\s*([A-Z][a-zéèêëàâäùûüôöîï]+\s+[A-Z][a-zéèêëàâäùûüôöîï\-]+(?:,\s*[A-Z][a-zéèêëàâäùûüôöîï]+\s+[A-Z][a-zéèêëàâäùûüôöîï\-]+)*)\s*\n/, text) do
+    case Regex.run(
+           ~r/\n\s*([A-Z][a-zéèêëàâäùûüôöîï]+\s+[A-Z][a-zéèêëàâäùûüôöîï\-]+(?:,\s*[A-Z][a-zéèêëàâäùûüôöîï]+\s+[A-Z][a-zéèêëàâäùûüôöîï\-]+)*)\s*\n/,
+           text
+         ) do
       [_, director] -> String.trim(director)
       _ -> nil
     end
   end
 
   defp extract_duration(article) do
-    # Chercher le pattern "1H14" ou "1H22" dans le texte
-    text = Floki.text(article)
-
-    case Regex.run(~r/(\d+)H(\d+)/i, text) do
-      [_, hours, minutes] ->
-        String.to_integer(hours) * 60 + String.to_integer(minutes)
-
-      _ ->
-        nil
-    end
+    Floki.find(article, "span.card-duree")
+    |> hd()
+    |> elem(2)
+    |> hd()
   end
 
   defp extract_poster(article) do

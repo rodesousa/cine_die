@@ -14,7 +14,7 @@ defmodule CineDie.Showtimes.ShowtimeData do
             "external_id" => "123",
             "title" => "Film Title",
             "director" => "Director Name",
-            "duration_minutes" => 120,
+            "duration" => "2h00",
             "genre" => "Action",
             "poster_url" => "https://...",
             "sessions" => [
@@ -47,7 +47,7 @@ defmodule CineDie.Showtimes.ShowtimeData do
       field :link, :string
       field :title, :string
       field :director, :string
-      field :duration_minutes, :integer
+      field :duration, :string
       field :genre, :string
       field :poster_url, :string
 
@@ -112,11 +112,11 @@ defmodule CineDie.Showtimes.ShowtimeData do
       :external_id,
       :title,
       :director,
-      :duration_minutes,
+      :duration,
       :genre,
       :poster_url
     ])
-    |> validate_required([:external_id, :title])
+    |> validate_required([:external_id, :title, :duration])
     |> cast_embed(:sessions, required: true, with: &session_changeset/2)
   end
 
@@ -151,7 +151,7 @@ defmodule CineDie.Showtimes.ShowtimeData do
       "external_id" => film.external_id,
       "title" => film.title,
       "director" => film.director,
-      "duration_minutes" => film.duration_minutes,
+      "duration" => film.duration,
       "genre" => film.genre,
       "poster_url" => film.poster_url,
       "sessions" => Enum.map(film.sessions, &session_to_map/1)

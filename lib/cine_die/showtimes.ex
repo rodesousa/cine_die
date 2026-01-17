@@ -177,7 +177,7 @@ defmodule CineDie.Showtimes do
           film_id: film["external_id"],
           director: film["director"],
           genre: film["genre"],
-          duration_minutes: film["duration_minutes"],
+          duration: film["duration"],
           poster_url: film["poster_url"],
           datetime: datetime,
           date: DateTime.to_date(datetime),

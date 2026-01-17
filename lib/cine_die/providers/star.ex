@@ -83,7 +83,7 @@ defmodule CineDie.Providers.Star do
         "external_id" => film_id,
         "title" => film_info.title,
         "director" => film_info.director,
-        "duration_minutes" => film_info.duration_minutes,
+        "duration" => film_info.duration,
         "genre" => film_info.genre,
         "poster_url" => film_info.poster_url,
         "sessions" =>
@@ -169,7 +169,7 @@ defmodule CineDie.Providers.Star do
       title: clean_title(title),
       link: link,
       director: extract_text_after(doc, film_id, "Réalisé par"),
-      duration_minutes: extract_duration(doc, film_id),
+      duration: extract_duration(doc, film_id),
       genre: extract_genre(doc, film_id),
       poster_url: extract_poster(doc, film_id)
     }
@@ -203,17 +203,9 @@ defmodule CineDie.Providers.Star do
     # Chercher le pattern de durée dans le texte
     text = Floki.text(doc)
 
-    case Regex.run(~r/(\d+)h(\d+)?/, text) do
-      [_, hours, minutes] ->
-        h = String.to_integer(hours)
-        m = if minutes && minutes != "", do: String.to_integer(minutes), else: 0
-        h * 60 + m
-
-      [_, hours] ->
-        String.to_integer(hours) * 60
-
-      _ ->
-        nil
+    case Regex.run(~r/(\d+h\d*)/, text) do
+      [duration | _] -> duration
+      _ -> nil
     end
   end
 

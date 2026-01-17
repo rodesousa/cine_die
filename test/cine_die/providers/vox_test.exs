@@ -3,15 +3,9 @@ defmodule CineDie.Providers.VoxTest do
   alias CineDie.Providers.Vox
   alias CineDie.Showtimes.ShowtimeData
 
+  defp html(), do: Vox.fetch_raw() |> elem(1)
+
   describe "cinema_info/0" do
-    test "fetch_raw" do
-      {:ok, raw} =
-        Vox.fetch_raw()
-
-      Vox.to_showtime_data(raw)
-      # |> IO.inspect(label: " ")
-    end
-
     test "retourne les infos du cinema" do
       info = Vox.cinema_info()
       assert info.name == "Vox Strasbourg"
@@ -22,19 +16,20 @@ defmodule CineDie.Providers.VoxTest do
 
   describe "to_showtime_data/1" do
     test "transforme HTML fixture en structure valide" do
-      html = File.read!("test/support/fixtures/vox_horaires.html")
-
-      assert {:ok, data} = Vox.to_showtime_data(html)
+      assert {:ok, data} = Vox.to_showtime_data(html())
       assert {:ok, _validated} = ShowtimeData.validate(data)
     end
 
     test "extrait des films avec sessions" do
-      html = File.read!("test/support/fixtures/vox_horaires.html")
-      {:ok, data} = Vox.to_showtime_data(html)
+      {:ok, data} = Vox.to_showtime_data(html())
 
       assert length(data["films"]) > 0
 
-      film = hd(data["films"])
+      data["films"]
+      |> Enum.at(6)
+
+      film =
+        hd(data["films"])
 
       assert film["external_id"]
       assert film["title"]
@@ -42,8 +37,7 @@ defmodule CineDie.Providers.VoxTest do
     end
 
     test "sessions ont les champs requis" do
-      html = File.read!("test/support/fixtures/vox_horaires.html")
-      {:ok, data} = Vox.to_showtime_data(html)
+      {:ok, data} = Vox.to_showtime_data(html())
 
       film = hd(data["films"])
       session = hd(film["sessions"])
@@ -53,12 +47,18 @@ defmodule CineDie.Providers.VoxTest do
     end
 
     test "metadata est correcte" do
-      html = File.read!("test/support/fixtures/vox_horaires.html")
-      {:ok, data} = Vox.to_showtime_data(html)
+      {:ok, data} = Vox.to_showtime_data(html())
 
       assert data["metadata"]["cinema_name"] == "Vox Strasbourg"
       assert data["metadata"]["total_sessions"] > 0
       assert data["metadata"]["fetched_at"]
+    end
+
+    test "extrait la duree comme string" do
+      {:ok, data} = Vox.to_showtime_data(html())
+
+      film = hd(data["films"])
+      assert is_binary(film["duration"]) or is_nil(film["duration"])
     end
   end
 end

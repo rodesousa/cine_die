@@ -98,7 +98,7 @@ defmodule CineDie.Providers.Vox do
           "external_id" => film_id,
           "title" => title,
           "director" => extract_director(element),
-          "duration_minutes" => extract_duration(element),
+          "duration" => extract_duration(element),
           "genre" => extract_genre(element),
           "poster_url" => extract_poster(element),
           "sessions" => extract_sessions(element, film_id)
@@ -120,17 +120,9 @@ defmodule CineDie.Providers.Vox do
       |> to_string()
 
     # Pattern matches "Durée : 1h26" or "Durée : 2h"
-    case Regex.run(~r/(\d+)h(\d+)?/, duration_text) do
-      [_, hours, minutes] ->
-        h = String.to_integer(hours)
-        m = if minutes && minutes != "", do: String.to_integer(minutes), else: 0
-        h * 60 + m
-
-      [_, hours] ->
-        String.to_integer(hours) * 60
-
-      _ ->
-        nil
+    case Regex.run(~r/(\d+h\d*)/, duration_text) do
+      [duration | _] -> duration
+      _ -> nil
     end
   end
 
@@ -180,11 +172,15 @@ defmodule CineDie.Providers.Vox do
   defp parse_booking_link(element) do
     href = Floki.attribute(element, "href") |> List.first() || ""
 
+    Floki.attribute(element, "span.hor")
+
     case Regex.run(@booking_regex, href) do
       [_full, film_id, timestamp, version, room_id] ->
         case Integer.parse(timestamp) do
           {ts, ""} ->
-            {:ok, datetime} = DateTime.from_unix(ts)
+            datetime =
+              DateTime.from_unix!(ts)
+              |> DateTime.add(1, :hour)
 
             # href can be absolute or relative
             booking_url =

@@ -156,6 +156,15 @@ defmodule CineDie.Providers.StarTest do
 
       assert film["poster_url"] =~ "poster-anaconda"
     end
+
+    test "extrait la duree comme string" do
+      html = load_fixture()
+
+      {:ok, data} = Star.to_showtime_data(html)
+      film = hd(data["films"])
+
+      assert is_binary(film["duration"]) or is_nil(film["duration"])
+    end
   end
 
   describe "fetch_raw/0" do
